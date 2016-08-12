@@ -1,0 +1,220 @@
+﻿<!DOCTYPE html>
+<html>
+<head>
+    <title>Powershell to UCS Director Custom Script Generator</title>
+	<meta charset="utf-8" />
+    <link rel="stylesheet" href="bower_components/codemirror/lib/codemirror.css" />
+    <link rel="stylesheet" href="bower_components/bootstrap/dist/css/bootstrap.min.css" />
+    <link rel="stylesheet" href="bower_components/bootstrap/dist/css/bootstrap-theme.min.css" />
+
+    <!-- Copyright 2016 Nocturnal Holding AS -->
+
+    <style type="text/css">
+        html, body {
+            padding-top: 30px;
+            padding-bottom: 20px;
+        }
+    </style>
+</head>
+<body ng-app="app" ng-controller="psTranslatorController as vm">
+    <div class="navbar navbar-inverse navbar-fixed-top">
+        <div class="container">
+            <div class="navbar-header">
+                <span class="navbar-brand">Powershell to UCS Director Custom Script Generator</span>
+            </div>
+        </div>
+    </div>
+    <div class="content">
+        <div class="col-sm-6">
+            <h2><span class="label label-info">Powershell Source</span></h2>
+            <textarea id="SourceEditor"></textarea>
+        </div>
+        <div class="col-sm-6">
+            <h2><span class="label label-info">UCS Director Cloupiascript Output</span></h2>
+            <textarea id="GeneratedEditor"></textarea>
+        </div>
+    </div>
+    <div class="col-sm-12">
+        <h2><span class="label label-info">Documentation</span></h2>
+        <h3>Powershell to UCS Director Cloupia Script converter for use with UCS Director Custom Workflow Tasks</h3>
+        <p>
+            UCS Director contains a tool for calling Powershell through a "Powershell Agent". For extremely simple tasks
+            this tool is suitable. But for more advanced tasks which require better handling of input and output data as well
+            as error management, the prebuilt task for executing Powershell scripts within the Windows infrastructure,
+            Cloupiascript is better suited.
+        </p>
+        <p>
+            This tool is work in progress and extends Powershell through comments placed at the top of a Powershell
+            script to permit the developer to have a single file that can be used for generating all the code necessary
+            to execute Powershell on UCS Director and map input and output variables from the "custom workflow task" 
+            declaration.
+        </p>
+        <p>
+            By specially coding comments at the start of a script, there are three classes of values that can be defined.
+            <ul>
+                <li>Input variables passed as part of the UCSD <i>input</i> structure as members</li>
+                <li>Output variables to be returned by Powershell and mapped to UCSD <i>output</i> class member variables</li>
+                <li>Variable substitutions to be used to invoke the Powershell script such as what machine to run the script on.</li>
+            </ul>
+        </p>
+        <p>
+            Given the following as an example :
+<pre>##{
+### Execute Powershell Options
+##    SubtaskLabel = "Create Machine Name"
+##    PowershellAgent = "Development"
+##    TargetIP = "1.2.3.4"
+##    Username = "Administrator"
+##    Password = "MaryHadALittleLambForDinner"
+##    Domain = "MyAwesomeWindowsDomain"
+### Inputs
+##    optimizedApplicationName -> OptimizedApplicationName
+##    siteName -> SiteName
+##    domain -> Domain
+##    adJoinAccount -> ADJoinAccount
+##    zone -> Zone
+##    subZone -> Subzone
+### Outputs
+##    machineName <- MachineName
+##}</pre>
+            This language is line oriented and therefore does not allow wrapping to new lines.
+        </p>
+        <h4>Comments</h4>
+        <p>
+            Comments are any text which starts with three hash signs "###". They extend to the end of the line 
+            and are purely informative and are otherwise ignored.
+        </p>
+        <h4>Variables/Macros</h4>
+        <p>
+            Variables are used for substitution within the boiler plate code for producing the output Cloupiascript.
+            Variables are formated as : <br/>
+        </p>
+        <blockquote>## <i>Name</i> = <i>Value</i></blockquote>
+        <p>
+            <b>Name</b> is a literal, this is simply a string of text starting with a letter or underscore (_) and followed
+            by zero or more letters, numbers or underscores. The name is compared (case sensitive) to substitution macros in
+            the boiler plate and the value is placed there.
+        </p>
+        <p>
+            <b>Value</b> can be formatted in two ways. 
+            <ul>
+                <li>The first is encapsulated within double-quotes "". In this circumstance
+                    the resulting subtitution would substitute the value explicitly as written.</li>
+                <li>The second method allows UCSD Custom workflow task input values to be used. In this case
+                    the name of the input value is provided without quotes and the name is interpretted as meaning
+                    a member of the <i>input</i> class passed by UCSD to the Cloupiascript.</li>
+            </ul>
+        </p>
+        <h4>Input variables</h4>
+        <p>
+            Input variables are variables passed from the UCS Director <i>input</i> class into the Powershell 
+            <i>$inputs</i> structure to be employed by the provided script. The format of an input variable is 
+            as follows :
+        </p>
+        <blockquote>## <i>CloupiascriptName</i> -> <i>PowershellName</i></blockquote>
+        <p>
+            As you can see, the direction of the arrow is referring to the copying from the Cloupiascript variable
+            into the Powershell script variable.
+        </p>
+        <p>
+            Input variables are stored in a Powershell structure that in this circumstance would look like :
+        </p>
+<pre>
+$inputs = @{
+    OptimizedApplicationName = 'PUPPY'
+    SiteName = 'USA'
+    Domain = 'ENG'
+    ADJoinAccount = 'Awesome@user.com'
+    Zone = 'Here'
+    Subzone = 'CN=poochie,DC=woochie,DC=puddin,DC=pie'
+}</pre>
+        <p>
+            The input variables are copied in the Cloupiascript from the <i>input</i> class verbatim.
+        </p>
+        <h4>Output variables</h4>
+        <p>
+            Output variables provide mappings from Powershell return values that have been specially formatted into
+            the Cloupiascript <i>output</i> class. These values are single values, not arrays.
+        </p>
+        <p>
+            It is the responsibility of the script writer to properly format a return structure called <i>$outputs</i>
+            to be processed upon return.
+        </p>
+        <p>
+            The header definition for defining the relation ship is as follows :
+        </p>
+        <blockquote>## <i>CloupiascriptName</i> <- <i>PowershellName</i></blockquote>
+        <p>
+            As with input variables, the direction of the arror defines the direction for the data to be copied. The
+            directive as above expressly specifies that the values will be extracted from the returned <i>$outputs</i>
+            structure into the Cloupiascript <i>output</i> structure.
+        </p>
+        <h4>Format of return structure from Powershell</h4>
+<pre>
+$result = @{
+    'success' = $true
+    'outputs' = @{
+        'MachineName' = 'GoodieGoodie'
+    }
+    'error' = ''
+    'log' = ''
+}
+return $result
+</pre>
+        <p>
+            The result structure must be formatted precisely as seen above. There are four mandatory values to be
+            included.
+            <ul>
+                <li><i>success</i> - specifies whether the Powershell script succeeded.</li>
+                <li><i>error</i> - provides a means for Powershell to return a meaningful error message back to 
+                    UCS Director when something goes wrong. Even if there is no error, it is important
+                    to define this value as non-null.</li>
+                <li><i>log</i> - Provides a method of returning a meaningful log message from Powershell. 
+                    As with <i>error</i> it is important to ensure that this is a non-null value even if
+                    unused.</li>
+                <li><i>outputs</i> - Provides the return values that have been defined in the headers to be
+                    mapped to the Cloupiascript/UCS Director <i>output</i> structure.</li>
+            </ul>
+        </p>
+        <h3>Installation</h3>
+        <p>
+            There are a few prerequisites to use this program.
+            <ul>
+                <li><a href="https://nodejs.org/en/">Node.js</a> which is a command line JavaScript engine based 
+                    on Googles V8 engine. Simply download and install Node.js</li>
+                <li><a href="https://bower.io/">Bower</a> which is a package manager for Node.js. To install this, 
+                    simply type "<b>npm install bower</b>" on the command line once Node.js is installed.</li>
+                <li><a href="https://angularjs.org/">Google Angular.js</a>, 
+                    <a href="http://getbootstrap.com/">Twitter Bootstrap</a>, 
+                    <a href="http://pegjs.org/">PEG.js</a>,
+                    <a href="https://codemirror.net/">Codemirror</a>,
+                    <a href="https://jquery.com/">jQuery</a> which are libraries which were used to 
+                    develop this tool. They can be downloaded simply by typing "<b>bower install</b>"
+                    from the directory where index.html was downloaded as part of this project.</li>
+            </ul>
+        </p>
+        <h3>Running this program</h3>
+        <p>
+            Simply type "<b>node server.js</b>" from the command line where this application was installed. Then point
+            your web browser to "<a href="http://localhost:8080">http://localhost:8080</a>". Then paste your Powershell
+            code into the left window and the output or errors will be shown in the right window.
+        </p>
+    </div>
+    <hr />
+    <footer>
+        <p>&copy; 2016 Nocturnal Holdings - Darren R. Starr</p>
+    </footer>
+
+    <script src="bower_components/jquery/dist/jquery.min.js"></script>
+    <script src="bower_components/bootstrap/dist/js/bootstrap.min.js"></script>
+    <script src="bower_components/angular/angular.min.js"></script>
+    <script src="bower_components/codemirror/lib/codemirror.js"></script>
+    <script src="bower_components/codemirror/mode/javascript/javascript.js"></script>
+    <script src="bower_components/codemirror/mode/powershell/powershell.js"></script>
+    <script src="bower_components/pegjs/peg-0.9.0.min.js"></script>
+
+    <script src="js/app.js"></script>
+    <script src="js/psTranslatorController.js"></script>
+</body>
+</html>
+
